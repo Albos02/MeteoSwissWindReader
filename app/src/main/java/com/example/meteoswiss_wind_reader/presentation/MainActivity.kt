@@ -22,6 +22,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.ui.tooling.preview.WearPreviewDevices
@@ -51,86 +54,21 @@ fun WearApp() {
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    val pagerState = rememberPagerState { 2 }
+
     MeteoSwissWindReaderTheme {
         AppScaffold {
-            if (isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Loading...",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
+            HorizontalPager(
+                state = pagerState
+            ) { page ->
+                when (page) {
+                    0 -> ChartScreen()
+                    1 -> WindSpeedDataScreen(
+                        windSpeeds = windSpeeds,
+                        lastTimestamp = lastTimestamp,
+                        isLoading = isLoading,
+                        error = error
                     )
-                }
-            } else if (error != null) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Error: $error",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "BOU",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    androidx.compose.foundation.layout.Box(
-                        modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
-                    )
-                    windSpeeds.reversed().chunked(5).forEach { rowSpeeds ->
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            rowSpeeds.forEachIndexed { index, speed ->
-                                if (index > 0) {
-                                    androidx.compose.foundation.layout.Box(
-                                        modifier = Modifier.padding(horizontal = 3.dp)
-                                    ) {
-                                        Text(
-                                            text = "·",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Normal,
-                                            textAlign = TextAlign.Center
-                                        )
-                                    }
-                                }
-                                Text(
-                                    text = String.format("%.1f", speed),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-                    lastTimestamp?.let { timestamp ->
-                        androidx.compose.foundation.layout.Box(
-                            modifier = Modifier.padding(top = 16.dp)
-                        ) {
-                            Text(
-                                text = formatTimestamp(timestamp),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Normal,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -144,6 +82,110 @@ fun WearApp() {
             lastTimestamp = result.lastTimestamp
             error = result.error
             isLoading = false
+        }
+    }
+}
+
+@Composable
+fun ChartScreen() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Chart",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+fun WindSpeedDataScreen(
+    windSpeeds: List<Double>,
+    lastTimestamp: String?,
+    isLoading: Boolean,
+    error: String?
+) {
+    if (isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Loading...",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
+    } else if (error != null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Error: $error",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
+    } else {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "BOU",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+            )
+            windSpeeds.reversed().chunked(5).forEach { rowSpeeds ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    rowSpeeds.forEachIndexed { index, speed ->
+                        if (index > 0) {
+                            androidx.compose.foundation.layout.Box(
+                                modifier = Modifier.padding(horizontal = 3.dp)
+                            ) {
+                                Text(
+                                    text = "·",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                        Text(
+                            text = String.format("%.1f", speed),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+            lastTimestamp?.let { timestamp ->
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.padding(top = 16.dp)
+                ) {
+                    Text(
+                        text = formatTimestamp(timestamp),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Normal,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }
