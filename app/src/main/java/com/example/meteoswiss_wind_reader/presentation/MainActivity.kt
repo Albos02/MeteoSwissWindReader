@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
@@ -46,6 +47,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WearApp() {
     var windSpeeds by remember { mutableStateOf<List<Double>>(emptyList()) }
+    var lastTimestamp by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -76,30 +78,58 @@ fun WearApp() {
                     )
                 }
             } else {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    windSpeeds.forEachIndexed { index, speed ->
-                        if (index > 0) {
-                            androidx.compose.foundation.layout.Box(
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            ) {
+                    Text(
+                        text = "BOU",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                    )
+                    windSpeeds.reversed().chunked(5).forEach { rowSpeeds ->
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            rowSpeeds.forEachIndexed { index, speed ->
+                                if (index > 0) {
+                                    androidx.compose.foundation.layout.Box(
+                                        modifier = Modifier.padding(horizontal = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = "·",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Normal,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
                                 Text(
-                                    text = "·",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Normal,
+                                    text = String.format("%.1f", speed),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
                                 )
                             }
                         }
-                        Text(
-                            text = String.format("%.1f", speed),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
+                    }
+                    lastTimestamp?.let { timestamp ->
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier.padding(top = 16.dp)
+                        ) {
+                            Text(
+                                text = formatTimestamp(timestamp),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
@@ -111,6 +141,7 @@ fun WearApp() {
         lifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val result = fetchLast10WindSpeeds()
             windSpeeds = result.speeds
+            lastTimestamp = result.lastTimestamp
             error = result.error
             isLoading = false
         }
@@ -119,6 +150,7 @@ fun WearApp() {
 
 data class FetchResult(
     val speeds: List<Double>,
+    val lastTimestamp: String?,
     val error: String?
 )
 
@@ -126,28 +158,35 @@ suspend fun fetchLast10WindSpeeds(): FetchResult {
     val client = HttpClient(Android)
     return try {
         val csv: String = client.get("https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/bou/ogd-smn_bou_t_now.csv").bodyAsText()
-        val speeds = parseLast10WindSpeeds(csv)
-        FetchResult(speeds = speeds, error = if (speeds.isEmpty()) "No data" else null)
+        val result = parseLast10WindSpeeds(csv)
+        FetchResult(speeds = result.speeds, lastTimestamp = result.lastTimestamp, error = if (result.speeds.isEmpty()) "No data" else null)
     } catch (e: Exception) {
-        FetchResult(emptyList(), e.message ?: "Unknown error")
+        FetchResult(emptyList(), null, e.message ?: "Unknown error")
     } finally {
         client.close()
     }
 }
 
-fun parseLast10WindSpeeds(csv: String): List<Double> {
+data class ParseResult(
+    val speeds: List<Double>,
+    val lastTimestamp: String?
+)
+
+fun parseLast10WindSpeeds(csv: String): ParseResult {
     val lines = csv.trim().split("\n")
-    if (lines.size < 2) return emptyList()
+    if (lines.size < 2) return ParseResult(emptyList(), null)
     
     val headers = lines[0].split(";")
     val fkl010z1Index = headers.indexOf("fkl010z1")
     val fve010z0Index = headers.indexOf("fve010z0")
     val fkl010z0Index = headers.indexOf("fkl010z0")
+    val timestampIndex = headers.indexOf("reference_timestamp")
     
     val speeds = mutableListOf<Double>()
+    var lastTimestamp: String? = null
     
     for (i in lines.size - 1 downTo 1) {
-        if (speeds.size >= 5) break
+        if (speeds.size >= 10) break
         val line = lines[i].trim()
         if (line.isEmpty()) continue
         
@@ -156,9 +195,13 @@ fun parseLast10WindSpeeds(csv: String): List<Double> {
             ?: values.getOrNull(fkl010z0Index)?.toDoubleOrNull()
             ?: values.getOrNull(fve010z0Index)?.toDoubleOrNull()
         speed?.let { speeds.add(it) }
+        
+        if (speeds.size == 1) {
+            lastTimestamp = values.getOrNull(timestampIndex)
+        }
     }
     
-    return speeds
+    return ParseResult(speeds, lastTimestamp)
 }
 
 @WearPreviewDevices
@@ -166,4 +209,9 @@ fun parseLast10WindSpeeds(csv: String): List<Double> {
 @Composable
 fun DefaultPreview() {
     WearApp()
+}
+
+fun formatTimestamp(timestamp: String): String {
+    // Format: "26.09.2026 00:00" -> "26.09.2026 00:00 UTC"
+    return "$timestamp UTC"
 }
