@@ -3,6 +3,7 @@ package com.example.meteoswiss_wind_reader.presentation
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,10 +17,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.pager.HorizontalPager
@@ -62,7 +67,11 @@ fun WearApp() {
                 state = pagerState
             ) { page ->
                 when (page) {
-                    0 -> ChartScreen()
+                    0 -> ChartScreen(
+                        windSpeeds = windSpeeds,
+                        isLoading = isLoading,
+                        error = error
+                    )
                     1 -> WindSpeedDataScreen(
                         windSpeeds = windSpeeds,
                         lastTimestamp = lastTimestamp,
@@ -87,17 +96,92 @@ fun WearApp() {
 }
 
 @Composable
-fun ChartScreen() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "Chart",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
+fun ChartScreen(windSpeeds: List<Double>, isLoading: Boolean, error: String?) {
+    if (isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Loading...",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
+    } else if (error != null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Error: $error",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
+    } else if (windSpeeds.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "No data",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
+    } else {
+        // Reverse to show oldest first (left to right)
+        val speeds = windSpeeds.reversed()
+        val minSpeed = speeds.minOrNull() ?: 0.0
+        val maxSpeed = speeds.maxOrNull() ?: 1.0
+        val range = if (maxSpeed > minSpeed) maxSpeed - minSpeed else 1.0
+
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val width = size.width
+                val height = size.height
+                val padding = 20.dp.toPx()
+                val chartWidth = width - 2 * padding
+                val chartHeight = height - 2 * padding
+
+                val points = speeds.mapIndexed { index, speed ->
+                    val x = padding + (index / (speeds.size - 1).toFloat()) * chartWidth
+                    val normalizedY = (speed - minSpeed) / range
+                    val y = padding + chartHeight - normalizedY.toFloat() * chartHeight
+                    Offset(x, y)
+                }
+
+                // Draw line
+                val path = Path()
+                points.forEachIndexed { index, point ->
+                    if (index == 0) {
+                        path.moveTo(point.x, point.y)
+                    } else {
+                        path.lineTo(point.x, point.y)
+                    }
+                }
+                drawPath(
+                    path,
+                    color = Color.White
+                )
+
+                // Draw points
+                points.forEach { point ->
+                    drawCircle(
+                        color = Color.White,
+                        center = point,
+                        radius = 4.dp.toPx()
+                    )
+                }
+            }
+        }
     }
 }
 
