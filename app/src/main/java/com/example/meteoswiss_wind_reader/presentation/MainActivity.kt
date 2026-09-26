@@ -149,12 +149,13 @@ fun ChartScreen(windSpeeds: List<Double>, isLoading: Boolean, error: String?) {
                 val height = size.height
                 val padding = 20.dp.toPx()
                 val chartWidth = width - 2 * padding
-                val chartHeight = height - 2 * padding
+                val chartHeight = (height - 2 * padding) * 0.5f
+                val verticalOffset = (height - chartHeight) / 2
 
                 val points = speeds.mapIndexed { index, speed ->
                     val x = padding + (index / (speeds.size - 1).toFloat()) * chartWidth
                     val normalizedY = (speed - minSpeed) / range
-                    val y = padding + chartHeight - normalizedY.toFloat() * chartHeight
+                    val y = verticalOffset + chartHeight - normalizedY.toFloat() * chartHeight
                     Offset(x, y)
                 }
 
